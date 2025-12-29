@@ -1,38 +1,50 @@
 package com.gmail.fetcher.config;
 
-
+import jakarta.annotation.PostConstruct;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.validation.annotation.Validated;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Positive;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
- * Configuration properties for Gmail API
+ * Gmail API Properties
  */
 @Configuration
-@ConfigurationProperties(prefix = "gmail.api")
+@ConfigurationProperties(prefix = "gmail")
 @Data
-@Validated
+@Slf4j
 public class GmailProperties {
 
-    @NotBlank(message = "Application name is required")
-    private String applicationName = "Gmail Fetcher Application";
+    private String applicationName;
+    private String credentialsFilePath;
+    private String tokensDirectoryPath;
+    private String scopes;
 
-    @NotBlank(message = "Credentials file path is required")
-    private String credentialsFilePath = "credentials.json";
+    /**
+     * Get scopes as a list
+     */
+    public List<String> getScopesList() {
+        if (scopes == null || scopes.isEmpty()) {
+            return Collections.singletonList("https://www.googleapis.com/auth/gmail.readonly");
+        }
+        // Split by comma and trim spaces
+        return Arrays.stream(scopes.split(","))
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.toList());
+    }
 
-    @NotBlank(message = "Tokens directory path is required")
-    private String tokensDirectoryPath = "tokens";
-
-    @NotBlank(message = "Scopes are required")
-    private String scopes = "https://www.googleapis.com/auth/gmail.readonly";
-
-    @Positive(message = "Max results must be positive")
-    private Integer maxResults = 100;
-
-    @NotBlank(message = "User ID is required")
-    private String userId = "me";
+    @PostConstruct
+    public void logConfig() {
+        log.info("========================================");
+        log.info("Gmail Properties Loaded:");
+        log.info("  Application Name: {}", applicationName);
+        log.info("  Scopes: {}", scopes);
+        log.info("  Credentials File: {}", credentialsFilePath);
+        log.info("  Tokens Directory: {}", tokensDirectoryPath);
+        log.info("========================================");
+    }
 }

@@ -10,14 +10,17 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 /**
  * MongoDB Document Entity for Email Messages
+ * UPDATED: Added ownerEmail to support multiple Gmail accounts
  */
 @Document(collection = "email_messages")
+@CompoundIndex(name = "owner_message_idx", def = "{'owner_email': 1, 'message_id': 1}", unique = true)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -27,7 +30,11 @@ public class EmailMessage {
     @Id
     private String id;
 
-    @Indexed(unique = true)
+    // NEW: Owner of this email (which Gmail account it belongs to)
+    @Indexed
+    @Field("owner_email")
+    private String ownerEmail;
+
     @Field("message_id")
     private String messageId;
 

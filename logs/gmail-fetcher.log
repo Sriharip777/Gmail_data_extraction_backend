@@ -1,0 +1,77 @@
+2025-12-29T11:52:54.472+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] com.gmail.fetcher.FetcherApplication     : Starting FetcherApplication using Java 25 with PID 10172 (C:\Users\sriha\IdeaProjects\Gmail_data_extraction_backend\target\classes started by sriha in C:\Users\sriha\IdeaProjects\Gmail_data_Extraction_backend)
+2025-12-29T11:52:54.474+05:30 DEBUG 10172 --- [Gmail Fetcher] [restartedMain] com.gmail.fetcher.FetcherApplication     : Running with Spring Boot v4.0.0, Spring v7.0.1
+2025-12-29T11:52:54.476+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] com.gmail.fetcher.FetcherApplication     : No active profile set, falling back to 1 default profile: "default"
+2025-12-29T11:52:54.524+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2025-12-29T11:52:54.524+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2025-12-29T11:52:54.989+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data MongoDB repositories in DEFAULT mode.
+2025-12-29T11:52:55.025+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 31 ms. Found 2 MongoDB repository interfaces.
+2025-12-29T11:52:55.525+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2025-12-29T11:52:55.537+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2025-12-29T11:52:55.537+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.14]
+2025-12-29T11:52:55.564+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1040 ms
+2025-12-29T11:52:55.700+05:30  WARN 10172 --- [Gmail Fetcher] [restartedMain] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.boot.context.properties.ConfigurationPropertiesBindException: Error creating bean with name 'gmailOAuthProperties': Could not bind properties to 'GmailOAuthProperties' : prefix=gmail.oauth, ignoreInvalidFields=false, ignoreUnknownFields=true
+2025-12-29T11:52:55.702+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] o.apache.catalina.core.StandardService   : Stopping service [Tomcat]
+2025-12-29T11:52:55.710+05:30  INFO 10172 --- [Gmail Fetcher] [restartedMain] .s.b.a.l.ConditionEvaluationReportLogger : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2025-12-29T11:52:55.722+05:30 ERROR 10172 --- [Gmail Fetcher] [restartedMain] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Binding to target com.gmail.fetcher.config.GmailOAuthProperties$$SpringCGLIB$$0 failed:
+
+    Property: gmail.oauth.clientId
+    Value: "null"
+    Reason: Client ID is required
+
+    Property: gmail.oauth.clientSecret
+    Value: "null"
+    Reason: Client secret is required
+
+
+Action:
+
+Update your application's configuration
+
+2025-12-29T11:53:13.427+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] com.gmail.fetcher.FetcherApplication     : Starting FetcherApplication using Java 25 with PID 23292 (C:\Users\sriha\IdeaProjects\Gmail_data_extraction_backend\target\classes started by sriha in C:\Users\sriha\IdeaProjects\Gmail_data_Extraction_backend)
+2025-12-29T11:53:13.430+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] com.gmail.fetcher.FetcherApplication     : No active profile set, falling back to 1 default profile: "default"
+2025-12-29T11:53:13.476+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2025-12-29T11:53:13.476+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2025-12-29T11:53:13.917+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data MongoDB repositories in DEFAULT mode.
+2025-12-29T11:53:13.958+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 36 ms. Found 2 MongoDB repository interfaces.
+2025-12-29T11:53:14.435+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2025-12-29T11:53:14.446+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2025-12-29T11:53:14.447+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.14]
+2025-12-29T11:53:14.472+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 996 ms
+2025-12-29T11:53:14.577+05:30  WARN 23292 --- [Gmail Fetcher] [restartedMain] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.boot.context.properties.ConfigurationPropertiesBindException: Error creating bean with name 'gmailOAuthProperties': Could not bind properties to 'GmailOAuthProperties' : prefix=gmail.oauth, ignoreInvalidFields=false, ignoreUnknownFields=true
+2025-12-29T11:53:14.579+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] o.apache.catalina.core.StandardService   : Stopping service [Tomcat]
+2025-12-29T11:53:14.585+05:30  INFO 23292 --- [Gmail Fetcher] [restartedMain] .s.b.a.l.ConditionEvaluationReportLogger : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2025-12-29T11:53:14.595+05:30 ERROR 23292 --- [Gmail Fetcher] [restartedMain] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Binding to target com.gmail.fetcher.config.GmailOAuthProperties$$SpringCGLIB$$0 failed:
+
+    Property: gmail.oauth.clientSecret
+    Value: "null"
+    Reason: Client secret is required
+
+    Property: gmail.oauth.clientId
+    Value: "null"
+    Reason: Client ID is required
+
+
+Action:
+
+Update your application's configuration
+

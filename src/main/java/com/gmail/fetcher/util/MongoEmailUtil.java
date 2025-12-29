@@ -144,13 +144,20 @@ public class MongoEmailUtil {
     /**
      * Delete old emails before a specific date
      */
-    public long deleteOldEmails(LocalDateTime beforeDate) {
-        Query query = new Query(Criteria.where("receivedDate").lt(beforeDate));
+    /**
+     * Delete old emails for specific owner
+     */
+    public long deleteOldEmailsForOwner(String ownerEmail, LocalDateTime beforeDate) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("ownerEmail").is(ownerEmail));
+        query.addCriteria(Criteria.where("receivedDate").lt(beforeDate));
+
         long deletedCount = mongoTemplate.remove(query, EmailMessage.class).getDeletedCount();
 
-        log.info("Deleted {} emails before {}", deletedCount, beforeDate);
+        log.info("Deleted {} old emails for {} before {}", deletedCount, ownerEmail, beforeDate);
         return deletedCount;
     }
+
 
     /**
      * Get total email count

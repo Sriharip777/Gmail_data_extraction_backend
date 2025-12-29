@@ -2,10 +2,7 @@ package com.gmail.fetcher.repository;
 
 
 import com.gmail.fetcher.entity.EmailMessage;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
-import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -13,63 +10,133 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * MongoDB Repository for EmailMessage
+ * Repository for EmailMessage entity
+ * MongoDB queries using Spring Data conventions
  */
 @Repository
 public interface EmailMessageRepository extends MongoRepository<EmailMessage, String> {
 
-    // Find by message ID
-    Optional<EmailMessage> findByMessageId(String messageId);
+    // ========================================
+    // BASIC QUERIES
+    // ========================================
 
-    // Find by sender email
-    List<EmailMessage> findByFromEmailContaining(String fromEmail);
+    /**
+     * Find all emails for a specific owner
+     */
+    List<EmailMessage> findByOwnerEmail(String ownerEmail);
 
-    // Find by subject
-    List<EmailMessage> findBySubjectContaining(String subject);
+    /**
+     * Find email by owner and message ID
+     */
+    Optional<EmailMessage> findByOwnerEmailAndMessageId(String ownerEmail, String messageId);
 
-    // Find by date range
-    List<EmailMessage> findByReceivedDateBetween(LocalDateTime start, LocalDateTime end);
+    /**
+     * Count total emails for owner
+     */
+    long countByOwnerEmail(String ownerEmail);
 
-    // Find by read status
-    List<EmailMessage> findByIsRead(Boolean isRead);
+    /**
+     * Delete all emails for owner
+     */
+    void deleteByOwnerEmail(String ownerEmail);
 
-    // Find by labels
-    List<EmailMessage> findByLabelsContaining(String label);
+    // ========================================
+    // READ/UNREAD QUERIES
+    // ========================================
 
-    // Find unread emails
-    @Query("{ 'isRead': false }")
-    List<EmailMessage> findUnreadEmails();
+    /**
+     * Find emails by read status
+     * Usage: findByOwnerEmailAndIsRead("user@gmail.com", false) → unread emails
+     * Usage: findByOwnerEmailAndIsRead("user@gmail.com", true) → read emails
+     */
+    List<EmailMessage> findByOwnerEmailAndIsRead(String ownerEmail, boolean isRead);
 
-    // Find starred emails
-    @Query("{ 'isStarred': true }")
-    List<EmailMessage> findStarredEmails();
+    /**
+     * Count unread/read emails
+     */
+    long countByOwnerEmailAndIsRead(String ownerEmail, boolean isRead);
 
-    // Custom filter query
-    @Query("{ 'fromEmail': { $regex: ?0, $options: 'i' }, " +
-            "'subject': { $regex: ?1, $options: 'i' }, " +
-            "'receivedDate': { $gte: ?2, $lte: ?3 } }")
-    List<EmailMessage> findByCustomFilter(String from, String subject,
-                                          LocalDateTime startDate,
-                                          LocalDateTime endDate);
+    // ========================================
+    // STARRED QUERIES
+    // ========================================
 
-    // Find emails after a specific date
-    @Query("{ 'receivedDate': { $gte: ?0 } }")
-    List<EmailMessage> findEmailsAfterDate(LocalDateTime date);
+    /**
+     * Find starred emails
+     */
+    List<EmailMessage> findByOwnerEmailAndIsStarred(String ownerEmail, boolean isStarred);
 
-    // Find unread emails by labels
-    @Query("{ 'isRead': false, 'labels': { $in: ?0 } }")
-    List<EmailMessage> findUnreadEmailsByLabels(List<String> labels);
+    /**
+     * Count starred emails
+     */
+    long countByOwnerEmailAndIsStarred(String ownerEmail, boolean isStarred);
 
-    // Count emails by sender
-    @Query(value = "{ 'fromEmail': ?0 }", count = true)
-    Long countByFromEmail(String fromEmail);
+    // ========================================
+    // SEARCH QUERIES
+    // ========================================
 
-    // Delete old emails
-    void deleteByReceivedDateBefore(LocalDateTime date);
+    /**
+     * Search by subject (case-insensitive, partial match)
+     */
+    List<EmailMessage> findByOwnerEmailAndSubjectContainingIgnoreCase(String ownerEmail, String subject);
 
-    // Paginated search
-    Page<EmailMessage> findByFromEmailContaining(String fromEmail, Pageable pageable);
+    /**
+     * Search by sender email (case-insensitive, partial match)
+     */
+    List<EmailMessage> findByOwnerEmailAndFromEmailContainingIgnoreCase(String ownerEmail, String fromEmail);
 
-    // Check if message exists
-    boolean existsByMessageId(String messageId);
+    /**
+     * Search by recipient email (case-insensitive, partial match)
+     */
+    List<EmailMessage> findByOwnerEmailAndToEmailContainingIgnoreCase(String ownerEmail, String toEmail);
+
+    // ========================================
+    // DATE RANGE QUERIES
+    // ========================================
+
+    /**
+     * Find emails received after a specific date
+     */
+    List<EmailMessage> findByOwnerEmailAndReceivedDateAfter(String ownerEmail, LocalDateTime afterDate);
+
+    /**
+     * Find emails received before a specific date
+     */
+    List<EmailMessage> findByOwnerEmailAndReceivedDateBefore(String ownerEmail, LocalDateTime beforeDate);
+
+    /**
+     * Find emails in date range
+     */
+    List<EmailMessage> findByOwnerEmailAndReceivedDateBetween(String ownerEmail, LocalDateTime startDate, LocalDateTime endDate);
+
+    // ========================================
+    // LABEL/CATEGORY QUERIES
+    // ========================================
+
+    /**
+     * Find emails containing specific label
+     */
+    List<EmailMessage> findByOwnerEmailAndLabelsContaining(String ownerEmail, String label);
+
+    // ========================================
+    // ATTACHMENT QUERIES
+    // ========================================
+
+    /**
+     * Find emails with attachments
+     */
+    List<EmailMessage> findByOwnerEmailAndHasAttachments(String ownerEmail, boolean hasAttachments);
+
+    // ========================================
+    // COMBINED QUERIES
+    // ========================================
+
+    /**
+     * Find unread emails with specific label
+     */
+    List<EmailMessage> findByOwnerEmailAndIsReadAndLabelsContaining(String ownerEmail, boolean isRead, String label);
+
+    /**
+     * Find starred unread emails
+     */
+    List<EmailMessage> findByOwnerEmailAndIsStarredAndIsRead(String ownerEmail, boolean isStarred, boolean isRead);
 }
