@@ -36,7 +36,7 @@ public class EmailParserUtil {
 
         // FIX: Convert Integer to Long
         if (message.getSizeEstimate() != null) {
-            builder.sizeEstimate(message.getSizeEstimate().longValue());
+            builder.sizeEstimate(message.getSizeEstimate());
         }
 
         // Parse headers

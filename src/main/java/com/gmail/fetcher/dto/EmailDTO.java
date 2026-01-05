@@ -21,6 +21,7 @@ public class EmailDTO {
     private String messageId;
     private String subject;
     private String fromEmail;
+    private String fromName;
     private String toEmail;
     private String ccEmail;
     private String bccEmail;
@@ -33,5 +34,5 @@ public class EmailDTO {
     private List<String> labels;
     private String threadId;
     private String snippet;
-    private Long sizeEstimate;
+    private Integer sizeEstimate;
 }

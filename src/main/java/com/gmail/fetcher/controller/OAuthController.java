@@ -4,21 +4,19 @@ import com.gmail.fetcher.config.GmailOAuthProperties;
 import com.gmail.fetcher.util.GmailAuthUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * OAuth Controller
- * UPDATED: Added config test endpoint
+ * OAuth Controller - Authorization URL only
  */
 @RestController
 @RequestMapping("/oauth")
 @RequiredArgsConstructor
 @Slf4j
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000"})
 public class OAuthController {
 
     private final GmailAuthUtil gmailAuthUtil;

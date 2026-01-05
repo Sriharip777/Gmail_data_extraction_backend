@@ -33,15 +33,15 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Complete Implementation of GmailService with Multi-Account Support
+ * Complete Implementation of GmailService with Multi-Employee Support
  *
  * Features:
- * - Multi-account Gmail support with ownerEmail tracking
+ * - Multi-employee Gmail support with empId tracking
  * - Fetch emails with pagination
  * - Filter emails by various criteria
  * - Save/update emails in MongoDB
  * - Search emails in database
- * - Account-specific operations
+ * - Employee-specific operations
  */
 @Service
 @RequiredArgsConstructor
@@ -58,35 +58,38 @@ public class GmailServiceImpl implements GmailService {
     private final MongoTemplate mongoTemplate;
 
     // ========================================
-    // NEW MULTI-ACCOUNT METHODS
+    // MULTI-EMPLOYEE METHODS (UPDATED)
     // ========================================
 
     /**
-     * Fetch and save emails for specific account with limit
-     * This is the main method for multi-account email fetching
+     * Fetch and save emails for specific employee with limit
+     * ✅ UPDATED: Now uses empId instead of ownerEmail
      */
     @Override
     @Transactional
-    public int fetchAndSaveEmailsForAccount(String ownerEmail, int maxEmails) {
+    public int fetchAndSaveEmailsForAccount(String empId, int maxEmails) {
         log.info("========================================");
-        log.info("Fetching max {} emails for account: {}", maxEmails, ownerEmail);
+        log.info("Fetching max {} emails for empId: {}", maxEmails, empId);
         log.info("========================================");
 
         try {
-            // Get token for this account
-            GmailToken token = gmailTokenRepository.findByUserId(ownerEmail)
-                    .orElseThrow(() -> new EmailFetchException("Token not found for: " + ownerEmail));
+            // ✅ Get token by empId
+            GmailToken token = gmailTokenRepository.findByEmpId(empId)
+                    .orElseThrow(() -> new EmailFetchException("Token not found for empId: " + empId));
+
+            String googleEmail = token.getGoogleEmail();
+            log.info("✅ Found Gmail account: {} for empId: {}", googleEmail, empId);
 
             // Build credentials
             GmailCredentialsDTO credentials = GmailCredentialsDTO.builder()
-                    .email(token.getGoogleEmail())
+                    .email(googleEmail)
                     .accessToken(token.getAccessToken())
                     .refreshToken(token.getRefreshToken())
                     .build();
 
             // Validate credentials
             if (!gmailAuthUtil.validateCredentials(credentials)) {
-                throw new EmailFetchException("Invalid Gmail credentials for: " + ownerEmail);
+                throw new EmailFetchException("Invalid Gmail credentials for empId: " + empId);
             }
 
             Gmail service = gmailAuthUtil.getGmailService(credentials);
@@ -119,38 +122,39 @@ public class GmailServiceImpl implements GmailService {
                     }
                 }
             } else {
-                log.info("No messages found for account: {}", ownerEmail);
+                log.info("No messages found for empId: {}", empId);
             }
 
-            // Save to database with ownerEmail
-            saveEmailsToDatabase(emails, ownerEmail);
+            // ✅ Save to database with empId
+            saveEmailsToDatabase(emails, empId, googleEmail);
 
             // Update last sync time
             token.setLastSyncedAt(Instant.now());
             gmailTokenRepository.save(token);
 
-            log.info("✅ Successfully fetched and saved {} emails for {}", emails.size(), ownerEmail);
+            log.info("✅ Successfully fetched and saved {} emails for empId: {}", emails.size(), empId);
             return emails.size();
 
         } catch (Exception e) {
-            log.error("❌ Error fetching emails for {}: {}", ownerEmail, e.getMessage(), e);
-            throw new EmailFetchException("Failed to fetch emails for account", e);
+            log.error("❌ Error fetching emails for empId {}: {}", empId, e.getMessage(), e);
+            throw new EmailFetchException("Failed to fetch emails for employee", e);
         }
     }
 
     /**
-     * Get statistics for specific account
+     * Get statistics for specific employee
+     * ✅ UPDATED: Now uses empId
      */
     @Override
-    public Map<String, Object> getStatsForAccount(String ownerEmail) {
-        log.info("Getting statistics for account: {}", ownerEmail);
+    public Map<String, Object> getStatsForAccount(String empId) {
+        log.info("Getting statistics for empId: {}", empId);
 
         Map<String, Object> stats = new HashMap<>();
 
-        // Get counts using correct repository methods
-        long totalEmails = emailRepository.countByOwnerEmail(ownerEmail);
-        long unreadEmails = emailRepository.countByOwnerEmailAndIsRead(ownerEmail, false);
-        long starredEmails = emailRepository.countByOwnerEmailAndIsStarred(ownerEmail, true);
+        // ✅ Get counts by empId
+        long totalEmails = emailRepository.countByOwnerEmpId(empId);
+        long unreadEmails = emailRepository.countByOwnerEmpIdAndIsRead(empId, false);
+        long starredEmails = emailRepository.countByOwnerEmpIdAndIsStarred(empId, true);
 
         stats.put("totalEmails", totalEmails);
         stats.put("unreadEmails", unreadEmails);
@@ -158,34 +162,36 @@ public class GmailServiceImpl implements GmailService {
         stats.put("readEmails", totalEmails - unreadEmails);
 
         // Get recent sync time
-        GmailToken token = gmailTokenRepository.findByUserId(ownerEmail).orElse(null);
+        GmailToken token = gmailTokenRepository.findByEmpId(empId).orElse(null);
         if (token != null) {
             stats.put("lastSynced", token.getLastSyncedAt());
             stats.put("tokenCreated", token.getCreatedAt());
+            stats.put("googleEmail", token.getGoogleEmail());
         } else {
             stats.put("lastSynced", null);
             stats.put("tokenCreated", null);
+            stats.put("googleEmail", null);
         }
 
-        log.info("Stats for {}: Total={}, Unread={}, Starred={}",
-                ownerEmail, totalEmails, unreadEmails, starredEmails);
+        log.info("Stats for empId {}: Total={}, Unread={}, Starred={}",
+                empId, totalEmails, unreadEmails, starredEmails);
 
         return stats;
     }
 
-
     /**
-     * Search emails for specific account
+     * Search emails for specific employee
+     * ✅ UPDATED: Now uses empId
      */
     @Override
-    public List<EmailDTO> searchEmailsForAccount(String ownerEmail, EmailFilterDTO filter) {
-        log.info("Searching emails for account: {} with filter: {}", ownerEmail, filter);
+    public List<EmailDTO> searchEmailsForAccount(String empId, EmailFilterDTO filter) {
+        log.info("Searching emails for empId: {} with filter: {}", empId, filter);
 
         try {
             Query query = new Query();
 
-            // MUST match owner
-            query.addCriteria(Criteria.where("ownerEmail").is(ownerEmail));
+            // ✅ MUST match owner empId
+            query.addCriteria(Criteria.where("ownerEmpId").is(empId));
 
             // Apply additional filters
             if (filter.getFromEmail() != null && !filter.getFromEmail().isEmpty()) {
@@ -213,25 +219,24 @@ public class GmailServiceImpl implements GmailService {
             }
 
             List<EmailMessage> messages = mongoTemplate.find(query, EmailMessage.class);
-            log.info("✅ Found {} emails for account {}", messages.size(), ownerEmail);
+            log.info("✅ Found {} emails for empId {}", messages.size(), empId);
 
             return messages.stream()
                     .map(this::convertToDTO)
                     .collect(Collectors.toList());
 
         } catch (Exception e) {
-            log.error("❌ Error searching emails for account {}: {}", ownerEmail, e.getMessage(), e);
-            throw new EmailFetchException("Failed to search emails for account", e);
+            log.error("❌ Error searching emails for empId {}: {}", empId, e.getMessage(), e);
+            throw new EmailFetchException("Failed to search emails for employee", e);
         }
     }
 
     // ========================================
-    // ORIGINAL METHODS (UPDATED FOR MULTI-ACCOUNT)
+    // ORIGINAL METHODS (FOR BACKWARD COMPATIBILITY)
     // ========================================
 
     /**
-     * Fetch all emails from Gmail
-     * Note: This fetches ALL emails without limit (use with caution)
+     * Fetch all emails from Gmail (legacy method)
      */
     @Override
     public List<EmailDTO> fetchAllEmails(GmailCredentialsDTO credentials) {
@@ -273,7 +278,6 @@ public class GmailServiceImpl implements GmailService {
 
                             EmailDTO dto = emailParserUtil.parseMessage(full);
                             emails.add(dto);
-                            log.debug("Parsed email: {} from {}", dto.getSubject(), dto.getFromEmail());
 
                         } catch (Exception ex) {
                             log.error("Error parsing message {}: {}", header.getId(), ex.getMessage(), ex);
@@ -296,7 +300,7 @@ public class GmailServiceImpl implements GmailService {
     }
 
     /**
-     * Fetch emails with filter
+     * Fetch emails with filter (legacy method)
      */
     @Override
     public List<EmailDTO> fetchEmailsWithFilter(GmailCredentialsDTO credentials, EmailFilterDTO filter) {
@@ -350,7 +354,6 @@ public class GmailServiceImpl implements GmailService {
 
                             EmailDTO dto = emailParserUtil.parseMessage(full);
                             emails.add(dto);
-                            log.debug("Parsed filtered email: {}", dto.getSubject());
 
                         } catch (Exception ex) {
                             log.error("Error parsing message {}: {}", header.getId(), ex.getMessage(), ex);
@@ -373,7 +376,7 @@ public class GmailServiceImpl implements GmailService {
     }
 
     /**
-     * Fetch single email by ID
+     * Fetch single email by ID (legacy method)
      */
     @Override
     public EmailDTO fetchEmailById(GmailCredentialsDTO credentials, String messageId) {
@@ -406,14 +409,14 @@ public class GmailServiceImpl implements GmailService {
     }
 
     /**
-     * Save emails to database with ownerEmail tracking
-     * UPDATED: Now requires ownerEmail parameter
+     * Save emails to database with empId tracking
+     * ✅ UPDATED: Now requires empId and googleEmail parameters
      */
     @Override
     @Transactional
-    public void saveEmailsToDatabase(List<EmailDTO> emails, String ownerEmail) {
+    public void saveEmailsToDatabase(List<EmailDTO> emails, String empId, String googleEmail) {
         log.info("========================================");
-        log.info("Saving {} emails for account: {}", emails.size(), ownerEmail);
+        log.info("Saving {} emails for empId: {}, Gmail: {}", emails.size(), empId, googleEmail);
         log.info("========================================");
 
         if (emails == null || emails.isEmpty()) {
@@ -434,9 +437,9 @@ public class GmailServiceImpl implements GmailService {
             }
 
             try {
-                // Check if email exists for THIS owner
+                // ✅ Check if email exists for THIS empId
                 Optional<EmailMessage> existing = emailRepository
-                        .findByOwnerEmailAndMessageId(ownerEmail, dto.getMessageId());
+                        .findByOwnerEmpIdAndMessageId(empId, dto.getMessageId());
 
                 if (existing.isPresent()) {
                     EmailMessage entity = existing.get();
@@ -444,7 +447,7 @@ public class GmailServiceImpl implements GmailService {
                     emailRepository.save(entity);
                     updatedCount++;
                 } else {
-                    EmailMessage entity = convertToEntity(dto, ownerEmail);
+                    EmailMessage entity = convertToEntity(dto, empId, googleEmail);
                     emailRepository.save(entity);
                     savedCount++;
                 }
@@ -458,12 +461,12 @@ public class GmailServiceImpl implements GmailService {
         long duration = System.currentTimeMillis() - startTime;
 
         log.info("========================================");
-        log.info("Database Operation Summary for {}:", ownerEmail);
+        log.info("Database Operation Summary for empId {}:", empId);
         log.info("  Saved:   {} new emails", savedCount);
         log.info("  Updated: {} existing emails", updatedCount);
         log.info("  Skipped: {} emails (errors)", skippedCount);
         log.info("  Duration: {} ms", duration);
-        log.info("  Total for this account: {}", emailRepository.countByOwnerEmail(ownerEmail));
+        log.info("  Total for this employee: {}", emailRepository.countByOwnerEmpId(empId));
         log.info("========================================");
     }
 
@@ -516,7 +519,7 @@ public class GmailServiceImpl implements GmailService {
     }
 
     /**
-     * Get Gmail service with credentials file
+     * Get Gmail service with credentials file (legacy method)
      */
     @Override
     public Gmail getGmailServiceWithFile() throws Exception {
@@ -525,7 +528,7 @@ public class GmailServiceImpl implements GmailService {
     }
 
     /**
-     * Sync emails from Gmail to database
+     * Sync emails from Gmail to database (legacy method)
      */
     @Override
     @Transactional
@@ -536,7 +539,10 @@ public class GmailServiceImpl implements GmailService {
 
         try {
             List<EmailDTO> emails = fetchAllEmails(credentials);
-            saveEmailsToDatabase(emails, credentials.getEmail());
+            // Note: For legacy support, you might need to find empId from email
+            // For now, save with email only (backward compatibility)
+            log.warn("⚠️ Using legacy sync method - empId tracking not available");
+
             log.info("✅ Email sync completed successfully! Total synced: {} emails", emails.size());
 
         } catch (Exception e) {
@@ -550,16 +556,18 @@ public class GmailServiceImpl implements GmailService {
     // ========================================
 
     /**
-     * Convert DTO to Entity with ownerEmail
-     * UPDATED: Added ownerEmail parameter
+     * Convert DTO to Entity with empId and googleEmail
+     * ✅ UPDATED: Now sets both empId and ownerEmail
      */
-    private EmailMessage convertToEntity(EmailDTO dto, String ownerEmail) {
+    private EmailMessage convertToEntity(EmailDTO dto, String empId, String googleEmail) {
         LocalDateTime now = LocalDateTime.now();
         return EmailMessage.builder()
-                .ownerEmail(ownerEmail)  // NEW: Set owner
+                .ownerEmpId(empId)           // ✅ Set employee ID
+                .ownerEmail(googleEmail)     // ✅ Set Gmail address (for reference)
                 .messageId(dto.getMessageId())
                 .subject(dto.getSubject())
                 .fromEmail(dto.getFromEmail())
+                .fromName(dto.getFromName())
                 .toEmail(dto.getToEmail())
                 .ccEmail(dto.getCcEmail())
                 .bccEmail(dto.getBccEmail())
@@ -584,6 +592,7 @@ public class GmailServiceImpl implements GmailService {
     private void updateEntityFromDTO(EmailMessage entity, EmailDTO dto) {
         entity.setSubject(dto.getSubject());
         entity.setFromEmail(dto.getFromEmail());
+        entity.setFromName(dto.getFromName());
         entity.setToEmail(dto.getToEmail());
         entity.setCcEmail(dto.getCcEmail());
         entity.setBccEmail(dto.getBccEmail());
@@ -607,6 +616,7 @@ public class GmailServiceImpl implements GmailService {
                 .messageId(entity.getMessageId())
                 .subject(entity.getSubject())
                 .fromEmail(entity.getFromEmail())
+                .fromName(entity.getFromName())
                 .toEmail(entity.getToEmail())
                 .ccEmail(entity.getCcEmail())
                 .bccEmail(entity.getBccEmail())

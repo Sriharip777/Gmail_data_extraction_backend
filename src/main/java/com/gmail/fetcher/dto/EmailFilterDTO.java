@@ -20,6 +20,7 @@ public class EmailFilterDTO {
 
     private String fromEmail;
     private String toEmail;
+    private String fromName;
     private String subject;
     private LocalDateTime startDate;
     private LocalDateTime endDate;

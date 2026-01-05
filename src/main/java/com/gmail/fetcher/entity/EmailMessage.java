@@ -30,6 +30,9 @@ public class EmailMessage {
     @Id
     private String id;
 
+    @Indexed
+    private String ownerEmpId;  // Employee ID who owns this email
+
     // NEW: Owner of this email (which Gmail account it belongs to)
     @Indexed
     @Field("owner_email")
@@ -44,6 +47,8 @@ public class EmailMessage {
     @Indexed
     @Field("from_email")
     private String fromEmail;
+
+    private String fromName;
 
     @Field("to_email")
     private String toEmail;
@@ -83,7 +88,7 @@ public class EmailMessage {
     private String snippet;
 
     @Field("size_estimate")
-    private Long sizeEstimate;
+    private Integer sizeEstimate;
 
     @Field("internal_date")
     private Long internalDate;

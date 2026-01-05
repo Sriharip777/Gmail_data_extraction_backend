@@ -1,6 +1,5 @@
 package com.gmail.fetcher.controller;
 
-
 import com.gmail.fetcher.entity.EmailMessage;
 import com.gmail.fetcher.entity.GmailToken;
 import com.gmail.fetcher.repository.EmailMessageRepository;
@@ -19,8 +18,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Email Fetch Controller - Complete Flow
+ * Email Fetch Controller - Complete Flow with Manager Access Support
  * Handles login status, fetch, and retrieve operations
+ * Supports managers viewing employee emails
  */
 @RestController
 @RequestMapping("/api/email")
@@ -33,6 +33,37 @@ public class EmailFetchController {
     private final GmailTokenRepository tokenRepository;
 
     /**
+     * ✅ NEW: Validate if user can view target employee's emails
+     * Returns the target empId if access is granted, throws exception otherwise
+     */
+    private String validateAndGetTargetEmpId(String requestedEmpId, HttpSession session) {
+        String loggedInEmpId = (String) session.getAttribute("empId");
+        String userRole = (String) session.getAttribute("userRole");
+
+        if (loggedInEmpId == null || loggedInEmpId.isBlank()) {
+            log.error("❌ No empId in session");
+            throw new SecurityException("No session found. Please login.");
+        }
+
+        // If no empId requested or requesting own emails, allow
+        if (requestedEmpId == null || requestedEmpId.isBlank() || requestedEmpId.equals(loggedInEmpId)) {
+            log.info("✅ User {} viewing own emails", loggedInEmpId);
+            return loggedInEmpId;
+        }
+
+        // If requesting someone else's emails, check if user is manager/HR/CEO
+        if ("Manager".equals(userRole) || "HR".equals(userRole) || "CEO".equals(userRole)) {
+            log.info("✅ {} ({}) is authorized to view {}'s emails", loggedInEmpId, userRole, requestedEmpId);
+            return requestedEmpId;
+        }
+
+        // Access denied
+        log.warn("⚠️ SECURITY: {} ({}) attempted to access {}'s emails - DENIED",
+                loggedInEmpId, userRole, requestedEmpId);
+        throw new SecurityException("Access denied. Only managers can view other employees' emails.");
+    }
+
+    /**
      * Check if user is logged in
      * GET /api/email/login-status
      */
@@ -42,95 +73,123 @@ public class EmailFetchController {
         log.info("📊 CHECKING LOGIN STATUS");
         log.info("========================================");
 
-        // Check session
+        Map<String, Object> response = new HashMap<>();
+
+        // ✅ Get session first
         HttpSession session = request.getSession(false);
 
         if (session == null) {
             log.error("❌ NO SESSION FOUND!");
+            response.put("loggedIn", false);
+            response.put("message", "No session exists. Please login again.");
+            response.put("reason", "session_not_found");
             log.info("========================================");
-            return ResponseEntity.ok(Map.of(
-                    "loggedIn", false,
-                    "message", "No session exists. Please login again.",
-                    "reason", "session_not_found"
-            ));
+            return ResponseEntity.ok(response);
         }
 
         log.info("✅ SESSION EXISTS:");
         log.info("  Session ID: {}", session.getId());
-        log.info("  Created: {}", new java.util.Date(session.getCreationTime()));
-        log.info("  Last Accessed: {}", new java.util.Date(session.getLastAccessedTime()));
-        log.info("  Max Inactive: {} seconds", session.getMaxInactiveInterval());
 
-        // Check email attribute
-        String activeEmail = (String) session.getAttribute("connectedEmail");
+        // ✅ Get empId from session
+        String empId = (String) session.getAttribute("empId");
 
-        if (activeEmail == null || activeEmail.isEmpty()) {
-            log.error("❌ SESSION EXISTS BUT NO EMAIL!");
+        if (empId == null || empId.isBlank()) {
+            log.error("❌ NO EMPID IN SESSION!");
             log.info("  Available attributes: {}",
                     java.util.Collections.list(session.getAttributeNames()));
-            log.info("========================================");
 
-            return ResponseEntity.ok(Map.of(
-                    "loggedIn", false,
-                    "message", "No Gmail account connected. Please login first.",
-                    "reason", "email_not_in_session",
-                    "sessionId", session.getId()
-            ));
+            response.put("loggedIn", false);
+            response.put("message", "No employee session found. Please login.");
+            response.put("reason", "empid_not_in_session");
+            log.info("========================================");
+            return ResponseEntity.ok(response);
         }
 
-        log.info("✅ USER LOGGED IN: {}", activeEmail);
+        log.info("✅ Found empId in session: {}", empId);
 
-        // Get additional info
-        GmailToken token = tokenRepository.findByUserId(activeEmail).orElse(null);
-        long emailCount = emailRepository.countByOwnerEmail(activeEmail);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("loggedIn", true);
-        response.put("email", activeEmail);
-        response.put("sessionId", session.getId());
-        response.put("emailsInDB", emailCount);
+        // ✅ Check if THIS employee has a Gmail token
+        GmailToken token = tokenRepository.findByEmpId(empId).orElse(null);
 
         if (token != null) {
+            log.info("✅ Employee {} has Gmail connected: {}", empId, token.getGoogleEmail());
+
+            long emailCount = emailRepository.countByOwnerEmpId(empId);
+
+            response.put("loggedIn", true);
+            response.put("email", token.getGoogleEmail());
+            response.put("empId", empId);
+            response.put("sessionId", session.getId());
             response.put("connectedAt", token.getCreatedAt());
-            response.put("lastSynced", token.getLastSyncedAt());
             response.put("tokenExpiry", token.getAccessTokenExpiresAt());
+            response.put("lastSynced", token.getLastSyncedAt());
+            response.put("emailsInDB", emailCount);
+
+            log.info("📊 STATS:");
+            log.info("  Gmail: {}", token.getGoogleEmail());
+            log.info("  Emails in DB: {}", emailCount);
+            log.info("  Token Valid: Yes");
+        } else {
+            log.info("❌ Employee {} has NO Gmail connected", empId);
+
+            response.put("loggedIn", false);
+            response.put("message", "No Gmail connected for this employee");
+            response.put("reason", "no_gmail_token");
+            response.put("empId", empId);
         }
 
-        log.info("📊 STATS:");
-        log.info("  Emails in DB: {}", emailCount);
-        log.info("  Token Valid: {}", token != null);
         log.info("========================================");
-
         return ResponseEntity.ok(response);
     }
 
     /**
-     * Fetch and store emails
-     * POST /api/email/fetch-and-store
+     * ✅ UPDATED: Fetch and store emails with optional empId parameter
+     * POST /api/email/fetch-and-store?empId=ARGHSE001 (optional)
      */
     @PostMapping("/fetch-and-store")
     public ResponseEntity<Map<String, Object>> fetchAndStoreEmails(
+            @RequestParam(required = false) String empId,
             @RequestParam(defaultValue = "100") int maxResults,
             HttpServletRequest request) {
 
-        HttpSession session = request.getSession(false);
-        String activeEmail = (session != null) ? (String) session.getAttribute("connectedEmail") : null;
+        log.info("========================================");
+        log.info("📧 FETCH AND STORE EMAILS");
+        log.info("========================================");
 
-        if (activeEmail == null || activeEmail.isBlank()) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "Please login first. No active Gmail account.");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        HttpSession session = request.getSession(false);
+
+        if (session == null) {
+            log.error("❌ No session found");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "success", false,
+                    "message", "No session. Please login first."
+            ));
         }
 
-        log.info("========================================");
-        log.info("Fetching emails for: {}", activeEmail);
-        log.info("Max results: {}", maxResults);
-        log.info("========================================");
-
         try {
-            int fetchedCount = gmailService.fetchAndSaveEmailsForAccount(activeEmail, maxResults);
-            long totalInDB = emailRepository.countByOwnerEmail(activeEmail);
+            // ✅ Validate access and get target empId
+            String targetEmpId = validateAndGetTargetEmpId(empId, session);
+
+            log.info("✅ Target empId: {}", targetEmpId);
+
+            // Get Gmail token for target employee
+            GmailToken token = tokenRepository.findByEmpId(targetEmpId).orElse(null);
+
+            if (token == null) {
+                log.error("❌ No Gmail token found for empId: {}", targetEmpId);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                        "success", false,
+                        "message", "No Gmail account connected for employee " + targetEmpId,
+                        "empId", targetEmpId
+                ));
+            }
+
+            String googleEmail = token.getGoogleEmail();
+            log.info("✅ Gmail connected: {}", googleEmail);
+            log.info("  Max results: {}", maxResults);
+
+            // Fetch emails for target employee
+            int fetchedCount = gmailService.fetchAndSaveEmailsForAccount(targetEmpId, maxResults);
+            long totalInDB = emailRepository.countByOwnerEmpId(targetEmpId);
 
             log.info("✅ Fetched and stored {} emails", fetchedCount);
             log.info("✅ Total in database: {}", totalInDB);
@@ -138,169 +197,251 @@ public class EmailFetchController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Emails fetched and stored successfully");
-            response.put("account", activeEmail);
+            response.put("empId", targetEmpId);
+            response.put("account", googleEmail);
             response.put("fetchedCount", fetchedCount);
             response.put("totalInDB", totalInDB);
             response.put("timestamp", java.time.Instant.now());
 
+            log.info("========================================");
             return ResponseEntity.ok(response);
 
+        } catch (SecurityException e) {
+            log.error("❌ Security Exception: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
         } catch (Exception e) {
             log.error("❌ Error fetching emails", e);
+            log.info("========================================");
 
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "Failed to fetch emails: " + e.getMessage());
-            error.put("account", activeEmail);
-
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "success", false,
+                    "message", "Failed to fetch emails: " + e.getMessage()
+            ));
         }
     }
 
     /**
-     * Get all emails with pagination
-     * GET /api/email/all
+     * ✅ UPDATED: Get all emails with pagination and optional empId parameter
+     * GET /api/email/all?empId=ARGHSE001 (optional)
      */
     @GetMapping("/all")
     public ResponseEntity<Map<String, Object>> getAllEmails(
+            @RequestParam(required = false) String empId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             HttpServletRequest request) {
 
         HttpSession session = request.getSession(false);
-        String activeEmail = (session != null) ? (String) session.getAttribute("connectedEmail") : null;
 
-        if (activeEmail == null || activeEmail.isBlank()) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "Please login first");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "success", false,
+                    "message", "Please login first"
+            ));
         }
 
-        log.info("Getting emails for: {} (page: {}, size: {})", activeEmail, page, size);
+        try {
+            // ✅ Validate access and get target empId
+            String targetEmpId = validateAndGetTargetEmpId(empId, session);
 
-        List<EmailMessage> allEmails = emailRepository.findByOwnerEmail(activeEmail);
+            log.info("📧 Getting emails for empId: {} (page: {}, size: {})", targetEmpId, page, size);
 
-        // Pagination
-        int start = page * size;
-        int end = Math.min(start + size, allEmails.size());
+            // Get Gmail email for logging
+            GmailToken token = tokenRepository.findByEmpId(targetEmpId).orElse(null);
+            String googleEmail = token != null ? token.getGoogleEmail() : "Unknown";
 
-        List<EmailMessage> paginatedEmails = allEmails.isEmpty() ?
-                allEmails : allEmails.subList(start, Math.min(end, allEmails.size()));
+            List<EmailMessage> allEmails = emailRepository.findByOwnerEmpId(targetEmpId);
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("account", activeEmail);
-        response.put("totalCount", allEmails.size());
-        response.put("page", page);
-        response.put("size", size);
-        response.put("emails", paginatedEmails);
+            // Pagination
+            int start = page * size;
+            int end = Math.min(start + size, allEmails.size());
 
-        return ResponseEntity.ok(response);
+            List<EmailMessage> paginatedEmails = allEmails.isEmpty() ?
+                    allEmails : allEmails.subList(start, end);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("empId", targetEmpId);
+            response.put("account", googleEmail);
+            response.put("totalCount", allEmails.size());
+            response.put("page", page);
+            response.put("size", size);
+            response.put("emails", paginatedEmails);
+
+            return ResponseEntity.ok(response);
+
+        } catch (SecurityException e) {
+            log.error("❌ Security Exception: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
     }
 
     /**
-     * Get unread emails
-     * GET /api/email/unread
+     * ✅ UPDATED: Get unread emails with optional empId parameter
+     * GET /api/email/unread?empId=ARGHSE001 (optional)
      */
     @GetMapping("/unread")
-    public ResponseEntity<Map<String, Object>> getUnreadEmails(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
-        String activeEmail = (session != null) ? (String) session.getAttribute("connectedEmail") : null;
+    public ResponseEntity<Map<String, Object>> getUnreadEmails(
+            @RequestParam(required = false) String empId,
+            HttpServletRequest request) {
 
-        if (activeEmail == null || activeEmail.isBlank()) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "Please login first");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        HttpSession session = request.getSession(false);
+
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "success", false,
+                    "message", "Please login first"
+            ));
         }
 
-        List<EmailMessage> unreadEmails = emailRepository.findByOwnerEmailAndIsRead(activeEmail, false);
+        try {
+            // ✅ Validate access and get target empId
+            String targetEmpId = validateAndGetTargetEmpId(empId, session);
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("account", activeEmail);
-        response.put("count", unreadEmails.size());
-        response.put("emails", unreadEmails);
+            GmailToken token = tokenRepository.findByEmpId(targetEmpId).orElse(null);
+            String googleEmail = token != null ? token.getGoogleEmail() : "Unknown";
 
-        return ResponseEntity.ok(response);
+            List<EmailMessage> unreadEmails = emailRepository.findByOwnerEmpIdAndIsRead(targetEmpId, false);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("empId", targetEmpId);
+            response.put("account", googleEmail);
+            response.put("count", unreadEmails.size());
+            response.put("emails", unreadEmails);
+
+            return ResponseEntity.ok(response);
+
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
     }
 
     /**
-     * Search emails
-     * GET /api/email/search
+     * ✅ UPDATED: Search emails with optional empId parameter
+     * GET /api/email/search?subject=test&empId=ARGHSE001 (empId optional)
      */
     @GetMapping("/search")
     public ResponseEntity<Map<String, Object>> searchEmails(
+            @RequestParam(required = false) String empId,
             @RequestParam(required = false) String subject,
             @RequestParam(required = false) String from,
             HttpServletRequest request) {
 
         HttpSession session = request.getSession(false);
-        String activeEmail = (session != null) ? (String) session.getAttribute("connectedEmail") : null;
 
-        if (activeEmail == null || activeEmail.isBlank()) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "Please login first");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "success", false,
+                    "message", "Please login first"
+            ));
         }
 
-        List<EmailMessage> results;
+        try {
+            // ✅ Validate access and get target empId
+            String targetEmpId = validateAndGetTargetEmpId(empId, session);
 
-        if (subject != null && !subject.isBlank()) {
-            results = emailRepository.findByOwnerEmailAndSubjectContainingIgnoreCase(activeEmail, subject);
-        } else if (from != null && !from.isBlank()) {
-            results = emailRepository.findByOwnerEmailAndFromEmailContainingIgnoreCase(activeEmail, from);
-        } else {
-            results = emailRepository.findByOwnerEmail(activeEmail);
+            GmailToken token = tokenRepository.findByEmpId(targetEmpId).orElse(null);
+            String googleEmail = token != null ? token.getGoogleEmail() : "Unknown";
+
+            List<EmailMessage> results;
+
+            if (subject != null && !subject.isBlank()) {
+                results = emailRepository.findByOwnerEmpIdAndSubjectContainingIgnoreCase(targetEmpId, subject);
+            } else if (from != null && !from.isBlank()) {
+                results = emailRepository.findByOwnerEmpIdAndFromEmailContainingIgnoreCase(targetEmpId, from);
+            } else {
+                results = emailRepository.findByOwnerEmpId(targetEmpId);
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("empId", targetEmpId);
+            response.put("account", googleEmail);
+            response.put("query", Map.of(
+                    "subject", subject != null ? subject : "",
+                    "from", from != null ? from : ""
+            ));
+            response.put("count", results.size());
+            response.put("emails", results);
+
+            return ResponseEntity.ok(response);
+
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
         }
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("account", activeEmail);
-        response.put("query", Map.of(
-                "subject", subject != null ? subject : "",
-                "from", from != null ? from : ""
-        ));
-        response.put("count", results.size());
-        response.put("emails", results);
-
-        return ResponseEntity.ok(response);
     }
 
     /**
-     * Get email statistics
-     * GET /api/email/stats
+     * ✅ UPDATED: Get email statistics with optional empId parameter
+     * GET /api/email/stats?empId=ARGHSE001 (optional)
      */
     @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getEmailStats(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
-        String activeEmail = (session != null) ? (String) session.getAttribute("connectedEmail") : null;
+    public ResponseEntity<Map<String, Object>> getEmailStats(
+            @RequestParam(required = false) String empId,
+            HttpServletRequest request) {
 
-        if (activeEmail == null || activeEmail.isBlank()) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("success", false);
-            error.put("message", "Please login first");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        HttpSession session = request.getSession(false);
+
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "success", false,
+                    "message", "Please login first"
+            ));
         }
 
-        long totalEmails = emailRepository.countByOwnerEmail(activeEmail);
-        long unreadEmails = emailRepository.countByOwnerEmailAndIsRead(activeEmail, false);
-        long starredEmails = emailRepository.countByOwnerEmailAndIsStarred(activeEmail, true);
+        try {
+            // ✅ Validate access and get target empId
+            String targetEmpId = validateAndGetTargetEmpId(empId, session);
 
-        GmailToken token = tokenRepository.findByUserId(activeEmail).orElse(null);
+            GmailToken token = tokenRepository.findByEmpId(targetEmpId).orElse(null);
+            String googleEmail = token != null ? token.getGoogleEmail() : "Unknown";
 
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("success", true);
-        stats.put("account", activeEmail);
-        stats.put("totalEmails", totalEmails);
-        stats.put("unreadEmails", unreadEmails);
-        stats.put("starredEmails", starredEmails);
-        stats.put("readEmails", totalEmails - unreadEmails);
-        stats.put("lastSynced", token != null ? token.getLastSyncedAt() : null);
-        stats.put("connectedAt", token != null ? token.getCreatedAt() : null);
+            long totalEmails = emailRepository.countByOwnerEmpId(targetEmpId);
+            long unreadEmails = emailRepository.countByOwnerEmpIdAndIsRead(targetEmpId, false);
+            long starredEmails = emailRepository.countByOwnerEmpIdAndIsStarred(targetEmpId, true);
 
-        return ResponseEntity.ok(stats);
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("success", true);
+            stats.put("empId", targetEmpId);
+            stats.put("account", googleEmail);
+            stats.put("totalEmails", totalEmails);
+            stats.put("unreadEmails", unreadEmails);
+            stats.put("starredEmails", starredEmails);
+            stats.put("readEmails", totalEmails - unreadEmails);
+            stats.put("lastSynced", token != null ? token.getLastSyncedAt() : null);
+            stats.put("connectedAt", token != null ? token.getCreatedAt() : null);
+
+            return ResponseEntity.ok(stats);
+
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Helper method to get empId from session (legacy support)
+     */
+    private String getEmpIdFromSession(HttpSession session) {
+        if (session == null) {
+            return null;
+        }
+        String empId = (String) session.getAttribute("empId");
+        return (empId != null && !empId.isBlank()) ? empId : null;
     }
 }

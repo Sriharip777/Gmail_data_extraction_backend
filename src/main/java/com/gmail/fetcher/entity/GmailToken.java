@@ -14,8 +14,12 @@ import java.time.Instant;
 @Document(collection = "gmail_tokens")
 public class GmailToken {
 
+    private String empId;
+
+
     @Id
     private String id;
+
 
     private String userId;                // owner in your app
     private String googleEmail;          // Gmail address
